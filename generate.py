@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Draw the 20 Nov 2026 news image: a dense 1024x1024 front page.
 
-33 stories, every continent, all first reported Friday 20 November
-2026: 3 illustrated leads, 10 grid stories, a world map and 20 indexed
-briefs, plus a DATE CHECK that names what was left out for being
-another day's news. Flat vector style only (no faces, no photos).
-Run:  python3 generate.py   ->  writes entry.png next to this file.
+36 stories, every continent, all first reported Friday 20 November
+2026: 3 illustrated leads, 10 grid stories with illustrated banners,
+a world map and 23 indexed briefs, plus a DATE CHECK that names what
+was left out for being another day's news. Flat vector style only
+(no faces, no photos). Run:  python3 generate.py  ->  writes entry.png.
 """
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
@@ -53,132 +53,120 @@ def draw_lines(draw, lines, x, y, fnt, fill, leading):
     return y
 
 
-def _disc(d, cx, cy, r, flag_img):
-    mask = Image.new("L", (2 * r, 2 * r), 0)
-    md = ImageDraw.Draw(mask)
-    md.ellipse([0, 0, 2 * r - 1, 2 * r - 1], fill=255)
-    img.paste(flag_img, (cx - r, cy - r), mask)
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=INK, width=2)
-
-
-def flag_us(d, cx, cy, r):
-    f = Image.new("RGB", (2 * r, 2 * r), (255, 255, 255))
-    fd = ImageDraw.Draw(f)
-    for i in range(13):
-        y0 = i * (2 * r) // 13
-        y1 = (i + 1) * (2 * r) // 13
-        fd.rectangle([0, y0, 2 * r, y1], fill=RED if i % 2 == 0 else (255, 255, 255))
-    fd.rectangle([0, 0, int(2 * r * 0.4), int(2 * r * 7 / 13)], fill=(30, 58, 138))
-    _disc(d, cx, cy, r, f)
-
-
-def flag_cn(d, cx, cy, r):
-    f = Image.new("RGB", (2 * r, 2 * r), (222, 0, 0))
-    fd = ImageDraw.Draw(f)
-    fd.text((int(2 * r * 0.14), int(2 * r * 0.10)), "\u2605",
-            font=font(BOLD, int(r * 0.9)), fill=(255, 222, 0))
-    _disc(d, cx, cy, r, f)
-
-
-def flag_ru(d, cx, cy, r):
-    f = Image.new("RGB", (2 * r, 2 * r), (255, 255, 255))
-    fd = ImageDraw.Draw(f)
-    fd.rectangle([0, 0, 2 * r, int(2 * r / 3)], fill=(255, 255, 255))
-    fd.rectangle([0, int(2 * r / 3), 2 * r, int(4 * r / 3)], fill=(0, 57, 166))
-    fd.rectangle([0, int(4 * r / 3), 2 * r, 2 * r], fill=(213, 0, 50))
-    _disc(d, cx, cy, r, f)
+def label_box(d, x, y, text, fg, bg, size=11):
+    """Small label: text in fg on a bg box, returns box width."""
+    fnt = font(BOLD, size)
+    tw = d.textlength(text, font=fnt)
+    d.rectangle([x, y, x + tw + 12, y + size + 8], fill=bg)
+    d.text((x + 6, y + 4), text, font=fnt, fill=fg)
+    return tw + 12
 
 
 # ---------------------------------------------------------------- stories
 LEADS = [
-    dict(n=1, place="ANTALYA", topic="CLIMATE",
-         head="COP31 ends with no deal as fossil fuels vanish",
-         body="Talks run past Friday's deadline; the draft drops the $120bn aid goal. \u2014 Reuters",
-         src="Reuters", region="Europe", mx=174, my=50, art="climate"),
-    dict(n=2, place="ODISHA", topic="STORM",
-         head="Cyclone Akvan hits Odisha coast, spares lives",
-         body="Landfall at Gopalpur at 70\u201380 km/h; no major damage after 300,000 were evacuated. \u2014 IMD",
+    dict(n=1, place="KYIV, UKRAINE", topic="WAR",
+         head="Russian missiles hit three Kyiv bridges",
+         body="About 110 missiles and 400 drones; at least eight killed, power and water cut. \u2014 Kyiv Independent",
+         src="Kyiv Independent", region="Europe", mx=174, my=50, art="war"),
+    dict(n=2, place="ODISHA, INDIA", topic="CYCLONE",
+         head="Cyclone Akvan comes ashore in eastern India",
+         body="Crossed the coast near Gopalpur from 8 am; 440,000 moved to shelters, no deaths. \u2014 IMD",
          src="IMD", region="Asia", mx=228, my=62, art="storm"),
-    dict(n=3, place="KYIV", topic="WAR",
-         head="Russia's overnight strikes kill 8 in Kyiv",
-         body="Bridges hit in the capital; 28 hurt across nine regions as peace talks stall. \u2014 AP",
-         src="AP", region="Europe", mx=170, my=30, art="war"),
+    dict(n=3, place="TAIPEI \u00b7 SEOUL \u00b7 TOKYO", topic="MARKETS",
+         head="AI sell-off sinks Asia's stock markets",
+         body="Taiwan fell 6.2%, its worst week since 1991; Seoul -5.2%, Tokyo -5.1%. \u2014 Nikkei Asia",
+         src="Nikkei Asia", region="Asia", mx=252, my=42, art="markets"),
 ]
 
 GRID = [
-    dict(n=4, place="WARSAW", topic="SECURITY",
-         head="Russia breaches Polish airspace",
-         body="Three objects \u2014 two missiles, one drone \u2014 cross overnight.",
-         src="Just Security", region="Europe", mx=152, my=22, icon="missile"),
-    dict(n=5, place="TALLINN", topic="SECURITY",
-         head="Estonia shuts Russia border",
-         body="Crossing closed for at least six months; Moscow vows a reply.",
-         src="Just Security", region="Europe", mx=None, my=None, icon="flag"),
-    dict(n=6, place="BRUSSELS", topic="DIPLOMACY",
-         head="UK and EU seal food and youth deals",
-         body="100,000 under-30s can move for 3 years; fees put off.",
-         src="Reuters", region="Europe", mx=None, my=None, icon="march"),
-    dict(n=7, place="WASHINGTON", topic="WAR",
-         head="Kushner floated NATO-for-Donbas swap",
-         body="WSJ: Ukraine would cede land for membership; Kyiv balks.",
-         src="WSJ", region="Americas", mx=None, my=None, icon="gavel"),
-    dict(n=8, place="BAGHDAD", topic="SECURITY",
-         head="Iraq moves on Iran-backed militia",
-         body="Troops deploy in Jurf al-Sakhar to curb oil smuggling.",
-         src="Just Security", region="Middle East", mx=190, my=56, icon="flag"),
-    dict(n=9, place="NEW YORK", topic="MARKETS",
-         head="AMD crashes 13% on China bombshell",
-         body="Short-seller Hunterbrook's report hits the chipmaker.",
-         src="ET", region="Americas", mx=55, my=45, icon="chart"),
-    dict(n=10, place="TEHRAN", topic="SECURITY",
-         head="Iran rejects US bioweapon claims",
-         body="Tehran denies developing biological and chemical arms.",
-         src="ET", region="Middle East", mx=204, my=46, icon="flag"),
-    dict(n=11, place="MEXICO CITY", topic="DIPLOMACY",
-         head="Sheinbaum's economy flight goes viral",
-         body="21-hour trip to APEC wins praise on Chinese internet.",
-         src="Bloomberg", region="Americas", mx=42, my=58, icon="flag"),
-    dict(n=12, place="SYDNEY", topic="SECURITY",
-         head="Sydney man charged over car-bomb research",
-         body="Police say he studied how to build a vehicle bomb.",
-         src="NZ Herald", region="Oceania", mx=272, my=118, icon="gavel"),
-    dict(n=13, place="LONDON", topic="JUSTICE",
-         head="RAF Fairford suspects face 2027 trial",
-         body="Two men charged over the September airbase incident.",
-         src="Just Security", region="Europe", mx=None, my=None, icon="gavel"),
+    dict(n=4, place="ANTALYA", topic="CLIMATE",
+         head="COP31 reaches its last day with no deal",
+         body="Draft omits fossil fuels.",
+         src="UN News", region="Europe", mx=170, my=30, art="cop31",
+         label="COP31: NO DEAL"),
+    dict(n=5, place="SHENZHEN", topic="DIPLOMACY",
+         head="Xi hails 'full turnaround' in ties with Australia",
+         body="Met the morning after APEC.",
+         src="Reuters", region="Asia", mx=246, my=56, art="xi",
+         label="XI \u2013 ALBANESE"),
+    dict(n=6, place="COX'S BAZAR", topic="JUSTICE",
+         head="Rohingya weep and pray after ICJ ruling",
+         body="Camps react to ICJ judgment.",
+         src="Al Jazeera", region="Asia", mx=234, my=60, art="rohingya",
+         label="ROHINGYA CAMPS"),
+    dict(n=7, place="BRUSSELS", topic="DIPLOMACY",
+         head="Burnham seals EU-UK reset deal",
+         body="Food, visas, carbon link.",
+         src="Al Jazeera", region="Europe", mx=152, my=22, art="ukeu",
+         label="UK\u2013EU DEAL"),
+    dict(n=8, place="EASTERN POLAND", topic="SECURITY",
+         head="Russian cruise missile lands in Poland",
+         body="Fell in a field; airports shut.",
+         src="Reuters", region="Europe", mx=164, my=28, art="poland",
+         label="POLAND: MISSILE"),
+    dict(n=9, place="CENTRAL IRAQ", topic="SECURITY",
+         head="Iraqi army enters a militia stronghold",
+         body="Troops enter Jurf al-Sakhar.",
+         src="Reuters", region="Middle East", mx=190, my=56, art="iraq",
+         label="IRAQ: ARMY IN"),
+    dict(n=10, place="TOKYO", topic="ECONOMY",
+         head="Japan's inflation picks up to 2.3%",
+         body="December rate rise in view.",
+         src="Reuters", region="Asia", mx=262, my=44, art="japan",
+         label="JAPAN: +2.3%"),
+    dict(n=11, place="MERCURY", topic="SPACE",
+         head="BepiColombo reaches Mercury",
+         body="Orbit burn set for Saturday.",
+         src="ESA", region="Global", mx=18, my=128, art="space",
+         label="MERCURY"),
+    dict(n=12, place="SAN SALVADOR", topic="POLITICS",
+         head="Bukele files to run for a third term",
+         body="Vote is 28 February 2027.",
+         src="AP", region="Americas", mx=42, my=58, art="bukele",
+         label="BUKELE: 3RD BID"),
+    dict(n=13, place="ITALY", topic="LABOUR",
+         head="General strike over Italy's budget",
+         body="Workers and students march.",
+         src="Reuters", region="Europe", mx=158, my=38, art="italy",
+         label="ITALY: STRIKE"),
 ]
 
 INDEX = [
-    (14, "KHARTOUM", "Sudan suspends all imports from Kenya", "BBC", "Africa"),
-    (15, "DARFUR", "Darfur women demand protection, war-crimes trials", "Radio Dabanga", "Africa"),
-    (16, "NAIROBI", "Chief Justice vows purge of corrupt judges", "The Standard", "Africa"),
-    (17, "KENEMA", "Teen gets 100 years for teacher's murder", "Calabash", "Africa"),
-    (18, "MOGADISHU", "Gulf bloc condemns Somalia's UAE remarks", "AllAfrica", "Africa"),
-    (19, "NAIROBI", "Kenya opposition seeks election law changes", "Reports", "Africa"),
-    (20, "KAMPALA", "Uganda curbs gatherings near Ebola-risk border", "Reports", "Africa"),
-    (21, "DAR ES SALAAM", "Tanzania re-elected to UN telecom council", "Reports", "Africa"),
-    (22, "DHAKA", "Tarique Rahman blames India for Bangladesh violence", "ET", "Asia"),
-    (23, "ISLAMABAD", "Pakistan army says 22 militants killed in raids", "The Hindu", "Asia"),
-    (24, "NEW DELHI", "IAF's active Rafale jets down to 32", "FlightGlobal", "Asia"),
-    (25, "TAIPEI", "TSMC tightens China AI chip curbs", "ET", "Asia"),
-    (26, "WASHINGTON", "US to put $1,000 in retirement accounts from 2027", "ET", "Americas"),
-    (27, "WASHINGTON", "Trump says Vance erred on Iran war critique", "WSJ", "Americas"),
-    (28, "WASHINGTON", "Trump and Xi want moderate AI rules", "ET", "Global"),
-    (29, "BRUSSELS", "EU confirms first AI-assisted cyberattack", "ET", "Europe"),
-    (30, "CINCINNATI", "P&G targets $10bn in productivity savings", "ET", "Americas"),
-    (31, "WELLINGTON", "India hit back on day two of NZ Test", "EIN", "Oceania"),
-    (32, "NIUE", "Niue wins Earthshot 2026 prize", "SMC", "Oceania"),
-    (33, "WELLINGTON", "NZ rejects becoming Australia's 7th state", "The Post", "Oceania"),
+    (14, "WELLINGTON", "Phillips hits 118 vs India; first Kiwi with tons in all formats vs same side", "ICC", "Oceania"),
+    (15, "WELLINGTON", "Nicholls 175* powers NZ to 368; 216-run stand with Phillips", "Cricbuzz", "Oceania"),
+    (16, "TURKANA", "Kenya starts drilling its first oil well; crude due 1 Dec", "Capital FM", "Africa"),
+    (17, "HORMUZ", "Brent $92.57 as tankers hit mines; Houthis attack Riyadh", "Reuters", "Middle East"),
+    (18, "RIYADH", "Saudi coalition downs Houthi missiles; 5 drones, 1 missile Friday", "Reuters", "Middle East"),
+    (19, "BLANTYRE", "Malawi fuel crisis; 4 hours for 20 litres, black market", "Al Jazeera", "Africa"),
+    (20, "LAS VEGAS", "Russell fastest in wet F1 practice, 1:47.272", "Formula1.com", "Americas"),
+    (21, "BEIJING", "China holds loan rates at 3.0%/3.5% for 18th month", "Reuters", "Asia"),
+    (22, "SEOUL", "Ruling party moves to impeach Chief Justice Cho", "Yonhap", "Asia"),
+    (23, "LVIV", "Strike on railway station kills 2; 10 hurt", "NV.ua", "Europe"),
+    (24, "GANJAM", "209mm rain as Akvan crosses Odisha", "PTI", "Asia"),
+    (25, "BARCELONA", "Pancreatic cancer pill shrinks tumours in 60.7%", "EORTC", "Europe"),
+    (26, "BERLIN", "School pupils strike against military service", "Al Jazeera", "Europe"),
+    (27, "LONDON", "General says UK runs cyber attacks abroad", "Sky News", "Europe"),
+    (28, "KAMPALA", "Police told to enforce Ebola ban on rallies", "allAfrica", "Africa"),
+    (29, "SYDNEY", "Australian shares fall 1.6% in sell-off", "Reuters", "Oceania"),
+    (30, "ANTALYA", "Panama asks COP31 to cap world oil output", "Anadolu", "Americas"),
+    (31, "ANTALYA", "EU official calls climate draft unacceptable", "RTE", "Europe"),
+    (32, "TURIN", "ATP backs plan to lift player pay past $350m", "ATP", "Europe"),
+    (33, "LEBANON", "Israeli air strikes hit south and east", "Anadolu", "Middle East"),
+    (34, "YEMEN", "Gunmen fire on cargo ship off coast", "UKMTO", "Middle East"),
+    (35, "ABUJA", "Court bars new evidence against Tinubu", "Channels TV", "Africa"),
+    (36, "AFRICA", "AfDB says 22 countries in debt distress", "ThisDay", "Africa"),
 ]
 
-REGIONS = [("ASIA", 5, (180, 83, 9)), ("MIDDLE EAST", 2, (14, 116, 144)),
-           ("EUROPE", 7, (30, 58, 138)), ("AFRICA", 8, (22, 101, 52)),
-           ("AMERICAS", 6, (126, 34, 206)), ("OCEANIA", 4, (14, 116, 144)),
+REGIONS = [("EUROPE", 11, (30, 58, 138)), ("ASIA", 8, (180, 83, 9)),
+           ("MIDDLE EAST", 5, (14, 116, 144)), ("AFRICA", 5, (22, 101, 52)),
+           ("AMERICAS", 3, (126, 34, 206)), ("OCEANIA", 3, (14, 116, 144)),
            ("GLOBAL", 1, (90, 90, 90))]
 
-BIG = [("92,000", "people at COP31, a record"), ("300,000", "evacuated before Akvan"),
-       ("8", "killed in Kyiv strikes"), ("100,000", "in UK\u2013EU youth deal"),
-       ("13%", "AMD's crash on China report"), ("$10bn", "P&G productivity savings")]
+BIG = [("3", "Kyiv bridges hit"), ("440,000", "moved to safety before Akvan"),
+       ("-6.2%", "Taiex, worst week since 1991"),
+       ("100,000", "youth visas a year in UK\u2013EU deal"),
+       ("2.3%", "Japan inflation, 1-year high"),
+       ("8 yrs", "BepiColombo reaches Mercury")]
 
 # simplified continents, in a 300x150 map box
 CONTINENTS = [
@@ -191,109 +179,207 @@ CONTINENTS = [
 ]
 
 
-def icon(d, kind, x, y, s, color):
-    """Tiny pictogram inside a square of side s at (x, y)."""
-    if kind == "bridge":
-        d.line([x, y + s * 0.7, x + s, y + s * 0.7], fill=color, width=3)
-        for px in (x + s * 0.2, x + s * 0.5, x + s * 0.8):
-            d.line([px, y + s * 0.2, px, y + s * 0.7], fill=color, width=2)
-        d.arc([x, y + s * 0.3, x + s, y + s * 0.9], 0, 180, fill=color, width=2)
-    elif kind == "missile":
-        d.line([x + s * 0.2, y + s * 0.8, x + s * 0.8, y + s * 0.2], fill=color, width=3)
-        d.polygon([(x + s * 0.8, y + s * 0.2), (x + s * 0.55, y + s * 0.25),
-                   (x + s * 0.75, y + s * 0.45)], fill=color)
-        for i in range(3):
-            d.ellipse([x + s * 0.15 - i * 3, y + s * 0.75 + i * 3,
-                       x + s * 0.25 - i * 3, y + s * 0.85 + i * 3],
-                      outline=color, width=1)
-    elif kind == "cyclone":
-        cx, cy = x + s / 2, y + s / 2
-        for r in range(int(s * 0.45), 3, -3):
-            d.arc([cx - r, cy - r, cx + r, cy + r], 0, 270, fill=color, width=2)
-    elif kind == "gavel":
-        d.line([x + s * 0.2, y + s * 0.7, x + s * 0.8, y + s * 0.3], fill=color, width=3)
-        d.rectangle([x + s * 0.55, y + s * 0.1, x + s * 0.95, y + s * 0.3], fill=color)
-        d.rectangle([x + s * 0.1, y + s * 0.75, x + s * 0.9, y + s * 0.85], fill=color)
-    elif kind == "flag":
-        d.line([x + s * 0.25, y + s * 0.1, x + s * 0.25, y + s * 0.9], fill=color, width=2)
-        d.polygon([(x + s * 0.25, y + s * 0.1), (x + s * 0.85, y + s * 0.3),
-                   (x + s * 0.25, y + s * 0.5)], fill=color)
-    elif kind == "chart":
-        pts = [(x + s * 0.1, y + s * 0.7), (x + s * 0.3, y + s * 0.5),
-               (x + s * 0.5, y + s * 0.6), (x + s * 0.7, y + s * 0.3),
-               (x + s * 0.9, y + s * 0.15)]
-        d.line(pts, fill=color, width=3)
-        d.line([x + s * 0.1, y + s * 0.85, x + s * 0.9, y + s * 0.85], fill=color, width=2)
-    elif kind == "game":
-        d.rounded_rectangle([x + s * 0.1, y + s * 0.3, x + s * 0.9, y + s * 0.75],
-                            radius=6, outline=color, width=2)
-        d.ellipse([x + s * 0.62, y + s * 0.45, x + s * 0.72, y + s * 0.55], fill=color)
-        d.ellipse([x + s * 0.76, y + s * 0.45, x + s * 0.86, y + s * 0.55], fill=color)
-    elif kind == "march":
-        for i, px in enumerate((0.2, 0.45, 0.7)):
-            d.ellipse([x + s * px, y + s * 0.15, x + s * (px + 0.12), y + s * 0.3], fill=color)
-            d.rectangle([x + s * px, y + s * 0.32, x + s * (px + 0.12), y + s * 0.75],
-                        fill=color)
-    elif kind == "tanker":
-        d.rectangle([x + s * 0.1, y + s * 0.55, x + s * 0.9, y + s * 0.8], fill=color)
-        d.rectangle([x + s * 0.6, y + s * 0.35, x + s * 0.75, y + s * 0.55], fill=color)
-        for fx in (0.2, 0.4, 0.6):
-            d.polygon([(x + s * fx, y + s * 0.35), (x + s * (fx + 0.07), y + s * 0.12),
-                       (x + s * (fx + 0.14), y + s * 0.35)], fill=(249, 115, 22))
-
-
-def lead_art(d, topic, x, y, w, h):
+def lead_art(d, kind, x, y, w, h):
     """Illustration strip at the top of a lead card."""
-    if topic == "climate":
-        # globe + thermometer, 1.5C limit breached
-        d.rectangle([x, y, x + w, y + h], fill=(14, 116, 144))
-        d.ellipse([x + 18, y + 14, x + 98, y + 94], fill=(34, 139, 230))
-        d.ellipse([x + 34, y + 28, x + 58, y + 48], fill=(34, 197, 94))
-        d.ellipse([x + 62, y + 56, x + 88, y + 76], fill=(34, 197, 94))
-        d.ellipse([x + 26, y + 62, x + 44, y + 78], fill=(34, 197, 94))
-        # thermometer
-        d.rounded_rectangle([x + w - 52, y + 16, x + w - 32, y + 78], radius=9,
-                            outline=(255, 255, 255), width=3)
-        d.ellipse([x + w - 56, y + 70, x + w - 28, y + 98], fill=RED)
-        d.rectangle([x + w - 46, y + 30, x + w - 38, y + 76], fill=RED)
-        d.rectangle([x + 108, y + 22, x + w - 70, y + 52], fill=(255, 255, 255))
-        d.text((x + 116, y + 29), "1.5\u00b0C LIMIT", font=font(BOLD, 15), fill=RED)
-        d.rectangle([x + 108, y + 62, x + w - 70, y + 92], fill=RED)
-        d.text((x + 116, y + 68), "BREACHED", font=font(BOLD, 17), fill=(255, 255, 255))
-    elif topic == "storm":
-        # cyclone spiral + rain + coastline, wind banner
-        d.rectangle([x, y, x + w, y + h], fill=(30, 58, 138))
-        cx, cy = x + 72, y + 54
-        for r in (38, 30, 22, 14):
-            d.arc([cx - r, cy - r, cx + r, cy + r], 0, 270, fill=(255, 255, 255), width=3)
-        d.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill=(250, 204, 21))
-        # rain, right half below the banner
-        for i in range(6):
-            rx = x + 158 + i * 24
-            d.line([rx, y + 50, rx - 10, y + 76], fill=(198, 222, 235), width=2)
-        # coastline strip
-        d.rectangle([x, y + h - 14, x + w, y + h], fill=LAND)
-        d.rectangle([x + 150, y + 12, x + w - 12, y + 38], fill=(250, 204, 21))
-        d.text((x + 158, y + 18), "70\u201380 KM/H", font=font(BOLD, 14), fill=INK)
-    else:
-        # war: skyline, flames, smoke, KYIV banner
+    if kind == "war":
+        # night sky, missile trails, skyline, bridge over the Dnipro, flames
         d.rectangle([x, y, x + w, y + h], fill=NAVY)
-        for bx, bt, bw, bh in [(16, 48, 40, 60), (64, 30, 36, 78), (108, 56, 32, 52),
-                               (148, 38, 38, 70), (194, 52, 36, 56), (238, 34, 34, 74),
-                               (280, 58, 22, 50)]:
-            d.rectangle([x + bx, y + bt, x + bx + bw, y + h], fill=(90, 90, 90))
-        # flames on two buildings
-        for fx, fy in [(x + 74, y + 30), (x + 252, y + 34)]:
-            d.polygon([(fx - 14, fy + 26), (fx, fy - 12), (fx + 14, fy + 26)],
+        for sx, sy in [(30, 14), (70, 8), (120, 18), (170, 10), (210, 16),
+                       (250, 8), (290, 14), (50, 26), (150, 24), (230, 26),
+                       (95, 10), (270, 24)]:
+            d.ellipse([x + sx - 1, y + sy - 1, x + sx + 1, y + sy + 1],
+                      fill=(255, 255, 255))
+        # missile trails: dotted arcs from top-right down to the city
+        for (x0, y0, x1, y1, x2, y2) in [(300, 4, 240, 34, 190, 66),
+                                         (270, 2, 210, 30, 150, 62),
+                                         (230, 6, 180, 36, 120, 70)]:
+            for t in range(0, 21):
+                tt = t / 20.0
+                px = int((1 - tt) ** 2 * x0 + 2 * (1 - tt) * tt * x1 + tt * tt * x2)
+                py = int((1 - tt) ** 2 * y0 + 2 * (1 - tt) * tt * y1 + tt * tt * y2)
+                r = 2 if t % 2 == 0 else 1
+                d.ellipse([x + px - r, y + py - r, x + px + r, y + py + r],
+                          fill=(250, 204, 21))
+            d.ellipse([x + x2 - 4, y + y2 - 4, x + x2 + 4, y + y2 + 4],
                       fill=(249, 115, 22))
-            d.polygon([(fx - 8, fy + 26), (fx, fy + 2), (fx + 8, fy + 26)],
-                      fill=RED)
-        # smoke
-        for sx, sy, sr in [(x + 74, y + 8, 10), (x + 252, y + 12, 9), (x + 160, y + 16, 8)]:
-            d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=(160, 160, 160))
-        d.rectangle([x + 12, y + 10, x + 76, y + 36], fill=RED)
-        d.text((x + 44, y + 14), "KYIV", font=font(BOLD, 16), fill=(255, 255, 255),
-               anchor="ma")
+        # skyline with lit windows
+        for bx, bt, bw in [(8, 46, 38), (52, 30, 34), (92, 52, 30),
+                           (128, 36, 36), (170, 50, 32), (208, 32, 32),
+                           (246, 54, 28), (280, 40, 30)]:
+            d.rectangle([x + bx, y + bt, x + bx + bw, y + h - 18], fill=(70, 70, 70))
+            for wy in range(bt + 8, h - 24, 12):
+                for wx in range(bx + 6, bx + bw - 4, 10):
+                    if (wx + wy) % 3 == 0:
+                        d.rectangle([x + wx, y + wy, x + wx + 4, y + wy + 5],
+                                    fill=(250, 204, 21))
+        # river + bridge at the bottom
+        d.rectangle([x, y + h - 18, x + w, y + h], fill=(30, 80, 140))
+        d.rectangle([x + 14, y + h - 32, x + w - 14, y + h - 18], fill=(40, 40, 40))
+        d.arc([x + 90, y + h - 34, x + 220, y + h - 6], 180, 360, fill=(40, 40, 40),
+              width=4)
+        for fx in (70, 250):
+            d.polygon([(x + fx - 12, y + h - 32), (x + fx, y + h - 52),
+                       (x + fx + 12, y + h - 32)], fill=(249, 115, 22))
+            d.polygon([(x + fx - 6, y + h - 32), (x + fx, y + h - 40),
+                       (x + fx + 6, y + h - 32)], fill=RED)
+        label_box(d, x + 10, y + 8, "KYIV", (255, 255, 255), RED, 15)
+        label_box(d, x + 10, y + 34, "3 BRIDGES HIT", RED, (255, 255, 255), 11)
+    elif kind == "storm":
+        # Bay of Bengal: coastline, cyclone spiral, rain, landfall marker
+        d.rectangle([x, y, x + w, y + h], fill=(30, 58, 138))
+        # India's east coast (tan) on the left
+        d.polygon([(x, y + h), (x, y + 8), (x + 52, y + 2), (x + 84, y + 30),
+                   (x + 78, y + 66), (x + 58, y + h)], fill=LAND)
+        d.text((x + 8, y + 82), "BAY OF", font=font(BOLD, 10), fill=(198, 222, 235))
+        d.text((x + 8, y + 94), "BENGAL", font=font(BOLD, 10), fill=(198, 222, 235))
+        # spiral
+        cx, cy = x + 150, y + 56
+        for r in (40, 32, 24, 16):
+            d.arc([cx - r, cy - r, cx + r, cy + r], 0, 270, fill=(255, 255, 255),
+                  width=3)
+        d.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill=(250, 204, 21))
+        # rain bands, right side
+        for i in range(7):
+            rx = x + 210 + i * 15
+            d.line([rx, y + 48, rx - 8, y + 74], fill=(198, 222, 235), width=2)
+        # landfall dot on the coast
+        d.ellipse([x + 78 - 6, y + 44 - 6, x + 78 + 6, y + 44 + 6], fill=RED,
+                  outline=(255, 255, 255), width=2)
+        d.text((x + 8, y + 58), "GOPALPUR", font=font(BOLD, 10), fill=INK)
+        label_box(d, x + 150, y + 8, "LANDFALL \u00b7 8 AM", INK, (255, 255, 255), 12)
+        label_box(d, x + 150, y + 32, "70\u201380 KM/H", INK, (250, 204, 21), 11)
+    else:
+        # markets: downtrend chart + closing table
+        d.rectangle([x, y, x + w, y + h], fill=(38, 10, 10))
+        # gridlines + chart
+        for gy in (24, 48, 72):
+            d.line([x + 12, y + gy, x + 176, y + gy], fill=(90, 50, 50), width=1)
+        pts = [(x + 14, y + 16), (x + 52, y + 34), (x + 90, y + 52),
+               (x + 128, y + 70), (x + 168, y + 92)]
+        d.line(pts, fill=(239, 68, 68), width=3)
+        for px, py in pts:
+            d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=(239, 68, 68))
+        d.text((x + 14, y + 92), "ASIA, FRIDAY'S CLOSE", font=font(BOLD, 9),
+               fill=(198, 222, 235))
+        # table
+        d.rectangle([x + 186, y + 8, x + w - 8, y + h - 8], fill=(255, 255, 255))
+        rows = [("TAIPEI", "-6.2%"), ("SEOUL", "-5.2%"),
+                ("TOKYO", "-5.1%"), ("HONG KONG", "-1.9%")]
+        for i, (mkt, val) in enumerate(rows):
+            ry = y + 14 + i * 22
+            d.text((x + 194, ry), mkt, font=font(BOLD, 11), fill=INK)
+            d.text((x + w - 16, ry), val, font=font(BOLD, 11), fill=RED, anchor="ra")
+        label_box(d, x + 10, y + 8, "AI SELL-OFF", (255, 255, 255), RED, 13)
+
+
+def grid_art(d, kind, x, y, w, h, label):
+    """Illustrated banner at the top of a grid cell + label box."""
+    if kind == "cop31":
+        d.rectangle([x, y, x + w, y + h], fill=TEAL)
+        d.ellipse([x + 14, y + 6, x + 44, y + 36], fill=(34, 139, 230))
+        d.ellipse([x + 20, y + 12, x + 32, y + 22], fill=(34, 197, 94))
+        d.ellipse([x + 30, y + 24, x + 40, y + 32], fill=(34, 197, 94))
+        d.rounded_rectangle([x + 56, y + 6, x + 66, y + 28], radius=4,
+                            outline=(255, 255, 255), width=2)
+        d.ellipse([x + 52, y + 26, x + 70, y + 40], fill=RED)
+        d.rectangle([x + 59, y + 12, x + 63, y + 28], fill=RED)
+    elif kind == "xi":
+        d.rectangle([x, y, x + w, y + h], fill=(254, 243, 199))
+        # China flag
+        d.rectangle([x + 12, y + 8, x + 62, y + 30], fill=(222, 0, 0))
+        d.text((x + 16, y + 10), "\u2605", font=font(BOLD, 14), fill=(255, 222, 0))
+        # Australia flag
+        d.rectangle([x + 70, y + 8, x + 120, y + 30], fill=(0, 40, 104))
+        d.text((x + 74, y + 10), "\u2605", font=font(BOLD, 10), fill=(255, 255, 255))
+        d.text((x + 100, y + 12), "\u2605", font=font(BOLD, 8), fill=(255, 255, 255))
+        # two figures shaking hands
+        for fx in (140, 168):
+            d.ellipse([x + fx, y + 8, x + fx + 10, y + 18], fill=(17, 17, 17))
+            d.rectangle([x + fx + 1, y + 19, x + fx + 9, y + 36], fill=(17, 17, 17))
+    elif kind == "rohingya":
+        d.rectangle([x, y, x + w, y + h], fill=(22, 101, 52))
+        for tx in (16, 56, 96, 136):
+            d.polygon([(x + tx, y + 34), (x + tx + 14, y + 12),
+                       (x + tx + 28, y + 34)], fill=(255, 253, 245))
+            d.ellipse([x + tx + 34, y + 22, x + tx + 40, y + 28], fill=(250, 204, 21))
+            d.rectangle([x + tx + 35, y + 29, x + tx + 39, y + 38], fill=(250, 204, 21))
+    elif kind == "ukeu":
+        d.rectangle([x, y, x + w, y + h], fill=(0, 40, 104))
+        # EU stars circle
+        for i in range(8):
+            import math
+            a = i * math.pi / 4
+            sx = x + 34 + int(12 * math.cos(a))
+            sy = y + 20 + int(12 * math.sin(a))
+            d.text((sx - 3, sy - 4), "\u2605", font=font(BOLD, 7), fill=(255, 222, 0))
+        # Union Jack (simplified)
+        d.rectangle([x + 66, y + 6, x + 122, y + 34], fill=(1, 33, 105))
+        d.line([x + 66, y + 6, x + 122, y + 34], fill=(255, 255, 255), width=3)
+        d.line([x + 122, y + 6, x + 66, y + 34], fill=(255, 255, 255), width=3)
+        d.line([x + 94, y + 6, x + 94, y + 34], fill=RED, width=4)
+        d.line([x + 66, y + 20, x + 122, y + 20], fill=RED, width=4)
+    elif kind == "poland":
+        d.rectangle([x, y, x + w, y + h], fill=(134, 239, 172))
+        d.line([x + 20, y + 30, x + 120, y + 8], fill=(90, 90, 90), width=3)
+        d.polygon([(x + 120, y + 8), (x + 104, y + 4), (x + 112, y + 18)],
+                  fill=(90, 90, 90))
+        d.polygon([(x + 18, y + 30), (x + 30, y + 22), (x + 36, y + 32)],
+                  fill=(249, 115, 22))
+        d.ellipse([x + 130, y + 24, x + 160, y + 34], fill=(90, 90, 90))
+        for tx in (150, 170):
+            d.polygon([(x + tx, y + 34), (x + tx + 6, y + 18),
+                       (x + tx + 12, y + 34)], fill=(22, 101, 52))
+    elif kind == "iraq":
+        d.rectangle([x, y, x + w, y + h], fill=(254, 215, 170))
+        for tx in (16, 76):
+            d.rectangle([x + tx, y + 20, x + tx + 44, y + 32], fill=(22, 101, 52))
+            d.rectangle([x + tx + 14, y + 10, x + tx + 30, y + 20], fill=(22, 101, 52))
+            d.line([x + tx + 30, y + 12, x + tx + 44, y + 8], fill=(22, 101, 52),
+                   width=3)
+        d.line([x + 140, y + 34, x + 140, y + 10], fill=(120, 53, 15), width=3)
+        for a in range(5):
+            import math
+            ang = a * 3.14159 / 2.5 - 1.2
+            d.line([x + 140, y + 12, x + 140 + int(12 * math.cos(ang)),
+                    y + 12 + int(10 * math.sin(ang))], fill=(22, 101, 52), width=2)
+    elif kind == "japan":
+        d.rectangle([x, y, x + w, y + h], fill=(255, 255, 255))
+        d.ellipse([x + 12, y + 6, x + 40, y + 34], fill=RED)
+        for i, bh in enumerate((8, 14, 20, 28)):
+            d.rectangle([x + 56 + i * 18, y + 36 - bh, x + 56 + i * 18 + 12, y + 36],
+                        fill=(90, 90, 90))
+        d.text((x + 140, y + 10), "+2.3%", font=font(BOLD, 15), fill=RED)
+    elif kind == "space":
+        d.rectangle([x, y, x + w, y + h], fill=(15, 23, 42))
+        for sx, sy in [(120, 8), (150, 20), (170, 10), (130, 30), (185, 28)]:
+            d.ellipse([x + sx - 1, y + sy - 1, x + sx + 1, y + sy + 1],
+                      fill=(255, 255, 255))
+        d.ellipse([x + 14, y + 4, x + 50, y + 40], fill=(160, 160, 160))
+        d.ellipse([x + 22, y + 12, x + 30, y + 20], fill=(120, 120, 120))
+        d.ellipse([x + 34, y + 24, x + 40, y + 30], fill=(120, 120, 120))
+        d.line([x + 60, y + 20, x + 100, y + 14], fill=(250, 204, 21), width=2)
+        d.ellipse([x + 98, y + 11, x + 106, y + 19], fill=(250, 204, 21))
+        d.text((x + 112, y + 22), "8 YRS", font=font(BOLD, 9),
+               fill=(255, 255, 255))
+    elif kind == "bukele":
+        d.rectangle([x, y, x + w, y + h], fill=(30, 58, 138))
+        d.rectangle([x + 60, y + 14, x + 110, y + 36], fill=(255, 255, 255))
+        d.rectangle([x + 76, y + 18, x + 94, y + 22], fill=INK)
+        d.rectangle([x + 78, y + 6, x + 92, y + 16], fill=(255, 255, 255),
+                    outline=INK, width=1)
+        d.text((x + 118, y + 18), "FEB 2027", font=font(BOLD, 10),
+               fill=(255, 255, 255))
+        d.text((x + 14, y + 18), "\u2713", font=font(BOLD, 18), fill=(250, 204, 21))
+    else:  # italy: crowd of protesters with signs
+        d.rectangle([x, y, x + w, y + h], fill=(254, 242, 242))
+        for i, px in enumerate((18, 48, 78, 108, 138, 168)):
+            d.ellipse([x + px, y + 10, x + px + 12, y + 22], fill=(17, 17, 17))
+            d.rectangle([x + px + 1, y + 23, x + px + 11, y + 38], fill=(17, 17, 17))
+            if i % 2 == 0:
+                d.rectangle([x + px - 6, y + 2, x + px + 18, y + 12],
+                            fill=RED if i % 4 == 0 else (22, 101, 52))
+    # label box, top-left over the scene
+    label_box(d, x + 4, y + 4, label, (255, 255, 255), RED, 10)
 
 
 def main():
@@ -305,13 +391,13 @@ def main():
 
     # --- kicker + masthead ---
     d.text((16, 18), "THE WORLD IN ONE DAY", font=font(BOLD, 16), fill=RED)
-    d.text((W - 16, 18), "33 STORIES \u00b7 EVERY CONTINENT \u00b7 ALL FROM THIS ONE DAY",
+    d.text((W - 16, 18), "36 STORIES \u00b7 EVERY CONTINENT \u00b7 ALL FROM THIS ONE DAY",
            font=font(BOLD, 16), fill=INK, anchor="ra")
     d.text((512, 38), "Friday 20 November 2026", font=font(SERIF, 46),
            fill=INK, anchor="ma")
     d.text((512, 88),
-           "COP31 ends with no deal \u00b7 Cyclone Akvan hits Odisha \u00b7 Russia strikes Kyiv",
-           font=font(REG, 16), fill=RED, anchor="ma")
+           "Russian missiles hit Kyiv's bridges \u00b7 Cyclone Akvan strikes India \u00b7 An AI sell-off sinks Asia's markets",
+           font=font(REG, 15), fill=RED, anchor="ma")
     d.line([16, 112, W - 16, 112], fill=INK, width=2)
 
     # --- stats strip: region blocks + big numbers ---
@@ -346,24 +432,23 @@ def main():
         draw_lines(d, bd, lx + 10, lead_y + 136 + len(hl) * 20 + 3,
                    font(REG, 12), (51, 51, 51), 15)
 
-    # --- grid: 10 stories, 2 rows x 5 ---
-    gw, gh, gy = 196, 112, 414
+    # --- grid: 10 stories, 2 rows x 5, each with an illustrated banner ---
+    gw, gh, gy = 196, 116, 414
     for i, s in enumerate(GRID):
         gx = 16 + (i % 5) * (gw + 4)
         gy2 = gy + (i // 5) * (gh + 4)
         d.rectangle([gx, gy2, gx + gw, gy2 + gh], fill=CREAM, outline=INK, width=1)
-        icon(d, s["icon"], gx + 8, gy2 + 8, 26, RED)
-        d.text((gx + 42, gy2 + 8), f"{s['n']}", font=font(BOLD, 15), fill=RED)
-        d.text((gx + 42, gy2 + 26), f"{s['place']} \u00b7 {s['topic']}",
+        grid_art(d, s["art"], gx + 1, gy2 + 1, gw - 2, 40, s["label"])
+        d.text((gx + 8, gy2 + 46), f"{s['n']}  {s['place']} \u00b7 {s['topic']}",
                font=font(BOLD, 10), fill=RED)
         hl = wrap(d, s["head"], font(BOLD, 13), gw - 16)
-        draw_lines(d, hl, gx + 8, gy2 + 44, font(BOLD, 13), INK, 15)
+        draw_lines(d, hl, gx + 8, gy2 + 62, font(BOLD, 13), INK, 15)
         bd = wrap(d, s["body"], font(REG, 11), gw - 16)
-        draw_lines(d, bd, gx + 8, gy2 + 44 + len(hl) * 15 + 2,
+        draw_lines(d, bd, gx + 8, gy2 + 62 + len(hl) * 15 + 2,
                    font(REG, 11), (51, 51, 51), 13)
 
     # --- map + index ---
-    my = 650
+    my = 660
     d.text((16, my), "WHERE IT HAPPENED", font=font(BOLD, 13), fill=RED)
     d.text((16, my + 16), "numbers match the stories",
            font=font(REG, 11), fill=GREY)
@@ -382,28 +467,32 @@ def main():
                anchor="mm")
     d.text((16, map_y + map_h + 6), "Red numbers mark stories 1\u201313.",
            font=font(REG, 11), fill=GREY)
-    # index, two columns: one line per brief, source inline
+    d.text((16, map_y + map_h + 20), "11 is in space (Mercury).",
+           font=font(REG, 11), fill=GREY)
+    # index, two columns: 12 in col 1, 11 in col 2
     ix0, ix1 = 340, 680
-    d.text((ix0, my), "ALSO ON FRIDAY 20 NOVEMBER 2026", font=font(BOLD, 13), fill=RED)
+    d.text((ix0, my), "ALSO ON FRIDAY 20 NOVEMBER \u2014 23 MORE STORIES",
+           font=font(BOLD, 13), fill=RED)
     d.text((ix0, my + 16), "place \u00b7 what happened \u00b7 source", font=font(REG, 11), fill=GREY)
     for j, (n, place, head, src, region) in enumerate(INDEX):
-        col = ix0 if j < 10 else ix1
-        yy = my + 36 + (j % 10) * 25
-        d.text((col, yy), str(n), font=font(BOLD, 11), fill=RED)
+        col = ix0 if j < 12 else ix1
+        yy = my + 36 + (j % 12) * 21
+        d.text((col, yy), str(n), font=font(BOLD, 10), fill=RED)
         line = f"{place} \u2014 {head}. \u2014 {src}"
-        ln = wrap(d, line, font(REG, 10), (ix1 - ix0 - 30) if j < 10 else (W - 16 - ix1 - 30))
-        draw_lines(d, ln, col + 24, yy, font(REG, 10), INK, 12)
+        col_w = (ix1 - ix0 - 28) if j < 12 else (W - 16 - ix1 - 28)
+        ln = wrap(d, line, font(REG, 9), col_w)
+        draw_lines(d, ln, col + 24, yy, font(REG, 9), INK, 11)
 
     # --- date check + sources ---
-    d.rectangle([16, 946, W - 16, 984], outline=RED, width=2)
-    d.text((512, 950),
+    d.rectangle([16, 956, W - 16, 994], outline=RED, width=2)
+    d.text((512, 960),
            "DATE CHECK \u2713  Every story on this page happened, or was first reported, on Friday 20 November 2026.",
-           font=font(BOLD, 12), fill=INK, anchor="ma")
-    d.text((512, 966),
-           "LEFT OUT AS OF OTHER DAYS' NEWS: 19 NOV: Shenzhen summit \u00b7 ICJ ruling \u00b7 GTA VI \u00b7 Anthropic IPO \u00b7 Somalia envoy out \u00b7 Haiti raid \u00b7 JPMorgan leak \u00b7 Venezuela ties",
-           font=font(REG, 11), fill=GREY, anchor="ma")
-    d.text((512, 992),
-           "Claims are attributed, not stated as fact \u00b7 Pictures and map: original, drawn in code \u00b7 Sources: Reuters, AP, WSJ, ET, The Hindu, NDTV, Just Security, BBC, SMC \u00b7 2026-11-20",
+           font=font(BOLD, 11), fill=INK, anchor="ma")
+    d.text((512, 976),
+           "LEFT OUT: 19 NOV: Shenzhen summit \u00b7 ICJ ruling \u00b7 GTA VI \u00b7 Anthropic IPO \u00b7 Somalia envoy out \u00b7 Haiti raid \u00b7 JPMorgan leak \u00b7 Venezuela ties \u00b7 Senegal boat \u00b7 Senegal decree \u00b7 Tonga drought",
+           font=font(REG, 10), fill=GREY, anchor="ma")
+    d.text((512, 998),
+           "Claims are attributed, not stated as fact \u00b7 Pictures and map: original, drawn in code \u00b7 Sources: Reuters, AP, WSJ, ET, The Hindu, NDTV, BBC, Al Jazeera, Kyiv Independent, ICC, ATP, UKMTO \u00b7 2026-11-20",
            font=font(REG, 10), fill=GREY, anchor="ma")
 
     img.save("entry.png", optimize=True)
